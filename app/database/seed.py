@@ -1,7 +1,9 @@
 # app/database/seed.py
-# Seeds the database with sample data for all roles
+# Seeds the database with sample data for all roles.
+# Passwords are bcrypt-hashed — never stored as plain text.
 
 from app.database.db_manager import get_connection
+from app.services.auth_service import hash_password
 
 
 def seed_data():
@@ -9,31 +11,34 @@ def seed_data():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Check if already seeded
     count = cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     if count > 0:
         conn.close()
         return
 
-    print("[Seed] Seeding sample data...")
+    print("[Seed] Seeding sample data with hashed passwords…")
 
-    # ── Users (one per role) ──────────────────────────────────────────────────
+    # ── Hash the demo password once, reuse for all seed users ─────────────────
+    # Demo password for ALL seed accounts is: Demo@1234
+    demo_hash = hash_password("Demo@1234")
+
+    # ── Users ──────────────────────────────────────────────────────────────────
     users = [
-        ("farmer1",   "1234", "farmer",   "Rahim Uddin",     "rahim@farm.com",    "01711111111", "Rajshahi, Bangladesh",     "Rahim Agro Farm", "5 acres"),
-        ("farmer2",   "1234", "farmer",   "Karim Ali",       "karim@farm.com",    "01722222222", "Rangpur, Bangladesh",      "Karim Green Farm","3 acres"),
-        ("customer1", "1234", "customer", "Sumaiya Begum",   "sumaiya@mail.com",  "01733333333", "Dhaka, Bangladesh",        None, None),
-        ("customer2", "1234", "customer", "Tanvir Hasan",    "tanvir@mail.com",   "01744444444", "Chittagong, Bangladesh",   None, None),
-        ("agent1",    "1234", "agent",    "Nayeem Khan",     "nayeem@agent.com",  "01755555555", "Dhaka, Bangladesh",        None, None),
-        ("investor1", "1234", "investor", "Sarwar Jahan",    "sarwar@invest.com", "01766666666", "Sylhet, Bangladesh",       None, None),
-        ("investor2", "1234", "investor", "Fatema Khatun",   "fatema@invest.com", "01777777777", "Dhaka, Bangladesh",        None, None),
+        ("farmer1",   demo_hash, "farmer",   "Rahim Uddin",   "rahim@farm.com",    "01711111111", "Rajshahi, Bangladesh",   "Rahim Agro Farm",  "5 acres"),
+        ("farmer2",   demo_hash, "farmer",   "Karim Ali",     "karim@farm.com",    "01722222222", "Rangpur, Bangladesh",    "Karim Green Farm", "3 acres"),
+        ("customer1", demo_hash, "customer", "Sumaiya Begum", "sumaiya@mail.com",  "01733333333", "Dhaka, Bangladesh",      None, None),
+        ("customer2", demo_hash, "customer", "Tanvir Hasan",  "tanvir@mail.com",   "01744444444", "Chittagong, Bangladesh", None, None),
+        ("agent1",    demo_hash, "agent",    "Nayeem Khan",   "nayeem@agent.com",  "01755555555", "Dhaka, Bangladesh",      None, None),
+        ("investor1", demo_hash, "investor", "Sarwar Jahan",  "sarwar@invest.com", "01766666666", "Sylhet, Bangladesh",     None, None),
+        ("investor2", demo_hash, "investor", "Fatema Khatun", "fatema@invest.com", "01777777777", "Dhaka, Bangladesh",      None, None),
     ]
     cursor.executemany("""
-        INSERT INTO users (username, password, role, full_name, email, phone, address, farm_name, farm_size)
+        INSERT INTO users
+            (username, password_hash, role, full_name, email, phone, address, farm_name, farm_size)
         VALUES (?,?,?,?,?,?,?,?,?)
     """, users)
 
-    # ── Products ──────────────────────────────────────────────────────────────
-    # farmer1 = id 1, farmer2 = id 2
+    # ── Products ───────────────────────────────────────────────────────────────
     products = [
         (1, "Tomato",       "Vegetables", "Fresh red tomatoes",          35.0,  200, "kg",  "2026-05-01"),
         (1, "Potato",       "Vegetables", "High-quality white potatoes", 25.0,  500, "kg",  "2026-06-15"),
@@ -51,13 +56,12 @@ def seed_data():
         VALUES (?,?,?,?,?,?,?,?)
     """, products)
 
-    # ── Orders ────────────────────────────────────────────────────────────────
-    # customer1=3, customer2=4; products 1-indexed
+    # ── Orders ─────────────────────────────────────────────────────────────────
     orders = [
         (3, 1, 1, 10.0,  350.0, "instant", "placed",    "Please deliver fresh"),
-        (3, 3, 1, 5.0,   450.0, "instant", "confirmed", ""),
+        (3, 3, 1,  5.0,  450.0, "instant", "confirmed", ""),
         (4, 2, 1, 20.0,  500.0, "instant", "harvested", ""),
-        (4, 6, 2, 15.0,  300.0, "advance", "placed",    "Advance booking for next season"),
+        (4, 6, 2, 15.0,  300.0, "advance", "placed",    "Advance booking"),
         (3, 4, 1, 50.0, 3250.0, "instant", "delivered", ""),
     ]
     cursor.executemany("""
@@ -65,20 +69,20 @@ def seed_data():
         VALUES (?,?,?,?,?,?,?,?)
     """, orders)
 
-    # ── Payments ──────────────────────────────────────────────────────────────
+    # ── Payments ───────────────────────────────────────────────────────────────
     payments = [
-        (1,  350.0,   0.0, "unpaid",  "cash",   None),
-        (2,  450.0, 450.0, "paid",    "online", "2026-03-28 10:00:00"),
-        (3,  500.0, 250.0, "partial", "cash",   "2026-03-29 14:00:00"),
-        (4,  300.0,   0.0, "unpaid",  "cash",   None),
-        (5, 3250.0,3250.0, "paid",    "online", "2026-03-25 09:00:00"),
+        (1,  350.0,    0.0, "unpaid",  "cash",   None),
+        (2,  450.0,  450.0, "paid",    "online", "2026-03-28 10:00:00"),
+        (3,  500.0,  250.0, "partial", "cash",   "2026-03-29 14:00:00"),
+        (4,  300.0,    0.0, "unpaid",  "cash",   None),
+        (5, 3250.0, 3250.0, "paid",    "online", "2026-03-25 09:00:00"),
     ]
     cursor.executemany("""
         INSERT INTO payments (order_id, amount_due, amount_paid, status, method, paid_at)
         VALUES (?,?,?,?,?,?)
     """, payments)
 
-    # ── Investments ───────────────────────────────────────────────────────────
+    # ── Investments ────────────────────────────────────────────────────────────
     investments = [
         (1, "Mango Orchard Expansion",
          "Expanding our mango orchard by 2 acres with drip irrigation. ROI expected in 8 months.",
@@ -92,8 +96,7 @@ def seed_data():
         VALUES (?,?,?,?,?,?,?)
     """, investments)
 
-    # ── Investment Contributions ──────────────────────────────────────────────
-    # investor1=6, investor2=7
+    # ── Investment Contributions ────────────────────────────────────────────────
     contributions = [
         (1, 6, 10000.0),
         (1, 7, 10000.0),
@@ -107,4 +110,4 @@ def seed_data():
 
     conn.commit()
     conn.close()
-    print("[Seed] Done. Sample data inserted.")
+    print("[Seed] Done. All passwords hashed with bcrypt. Demo password: Demo@1234")
